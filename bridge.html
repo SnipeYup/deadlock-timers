@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>DLT_READY</title></head>
+<body>
+<!-- Deadlock Timers save page. The game's hidden browser panel loads this page,
+     sends commands in the URL fragment, and reads replies from the page title.
+     Settings live in this site's localStorage on the player's own PC. -->
+<script>
+(function () {
+  var KEYS = /^dlt_[a-z0-9_]{1,40}$/;
+  var CHUNK = 1200, lastQ = null;
+  function reply(q, obj) {
+    var text = JSON.stringify(obj), total = Math.max(1, Math.ceil(text.length / CHUNK)), i = 0;
+    (function next() {
+      if (i >= total) return;
+      document.title = 'DLT_RES:' + q + ':' + i + '/' + total + ':' + text.slice(i * CHUNK, (i + 1) * CHUNK);
+      i++;
+      if (i < total) setTimeout(next, 60);
+    })();
+  }
+  function handle() {
+    var raw = location.hash.slice(1);
+    if (!raw) return;
+    var msg;
+    try { msg = JSON.parse(decodeURIComponent(raw)); } catch (e) { return; }
+    if (!msg || msg.q === lastQ) return;
+    lastQ = msg.q;
+    if (!KEYS.test(String(msg.k))) return reply(msg.q, { ok: false, err: 'bad key' });
+    try {
+      if (msg.op === 'get') reply(msg.q, { ok: true, v: localStorage.getItem(msg.k) });
+      else if (msg.op === 'set') { localStorage.setItem(msg.k, String(msg.v).slice(0, 200000)); reply(msg.q, { ok: true }); }
+      else reply(msg.q, { ok: false, err: 'bad op' });
+    } catch (e) { reply(msg.q, { ok: false, err: 'storage blocked' }); }
+  }
+  window.addEventListener('hashchange', handle);
+  document.title = 'DLT_READY';
+  handle();
+})();
+</script>
+</body></html>
